@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JKSSB Junior Assistant Pro - Syed Mohd Umar Jeelani</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <style>
+        :root { --primary: #2c3e50; --secondary: #3498db; --accent: #e67e22; --success: #27ae60; --danger: #e74c3c; --bg: #f4f7f6; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        .header { text-align: center; border-bottom: 2px solid var(--secondary); padding-bottom: 10px; margin-bottom: 20px; }
+        .menu-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        button { padding: 15px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.3s; color: white; }
+        .btn-blue { background: var(--secondary); }
+        .btn-orange { background: var(--accent); }
+        .btn-green { background: var(--success); }
+        button:hover { opacity: 0.9; transform: translateY(-2px); }
+        .stats-card { background: #fff; border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin-top: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background: #f8f9fa; }
+        #quiz-box { display: none; }
+        .option { display: block; width: 100%; text-align: left; padding: 12px; margin: 8px 0; background: #fff; border: 1px solid #ccc; border-radius: 5px; cursor: pointer; color: #333; }
+        .option:hover { background: #f0f0f0; }
+        .correct { background: #d4edda !important; border-color: #c3e6cb !important; color: #155724; }
+        .wrong { background: #f8d7da !important; border-color: #f5c6cb !important; color: #721c24; }
+        @media (max-width: 600px) { .container { padding: 15px; } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="home-screen">
+        <div class="header">
+            <h1>Umar’s JKSSB Exam Engine</h1>
+            <p>Candidate: <strong>Syed Mohd Umar Jeelani</strong> | Target: Junior Assistant 2026</p>
+        </div>
+
+        <div class="menu-grid">
+            <button class="btn-blue" onclick="startQuiz('computer')">💻 Computer (20Q)</button>
+            <button class="btn-blue" onclick="startQuiz('jk_gk')">🌍 J&K Awareness (20Q)</button>
+            <button class="btn-blue" onclick="startQuiz('english')">📚 General English (20Q)</button>
+            <button class="btn-blue" onclick="startQuiz('aptitude')">🔢 Numerical & Reasoning (20Q)</button>
+            <button class="btn-orange" onclick="startQuiz('mock')" style="grid-column: 1 / -1;">🏆 Full 80Q Mock Test (80 Min)</button>
+        </div>
+
+        <div class="stats-card">
+            <h3>📈 Performance Analytics</h3>
+            <table id="stats-table">
+                <thead><tr><th>Section</th><th>Attempted</th><th>Accuracy</th></tr></thead>
+                <tbody>
+                    <tr><td>Computer</td><td id="comp-att">0</td><td id="comp-acc">0%</td></tr>
+                    <tr><td>J&K Awareness</td><td id="jk-att">0</td><td id="jk-acc">0%</td></tr>
+                    <tr><td>English</td><td id="eng-att">0</td><td id="eng-acc">0%</td></tr>
+                    <tr><td>Numerical/Reasoning</td><td id="apt-att">0</td><td id="apt-acc">0%</td></tr>
+                </tbody>
+            </table>
+            <button class="btn-green" style="width:100%; margin-top:15px;" onclick="exportToPDF()">📄 Export Report to PDF</button>
+        </div>
+    </div>
+
+    <div id="quiz-box">
+        <h2 id="section-title">Section Name</h2>
+        <p id="q-count">Question 1 of 20</p>
+        <h3 id="question-text">Question goes here?</h3>
+        <div id="options-list"></div>
+        <div id="feedback" style="margin-top:15px; font-weight:bold;"></div>
+        <button id="next-btn" class="btn-orange" style="width:100%; margin-top:20px; display:none;" onclick="nextQuestion()">Next Question →</button>
+    </div>
+</div>
+
+<script>
+    /* --- 1. SERVICE WORKER REGISTRATION (OFFLINE SUPPORT) --- */
+    if ('serviceWorker' in navigator) {
+        const swCode = `
+            const CACHE_NAME = 'umar-jkssb-v1';
+            self.addEventListener('install', e => {
+                e.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(['./'])));
+            });
+            self.addEventListener('fetch', e => {
+                e.respondWith(caches.match(e.request).then(res => res || fetch(e.request)));
+            });
+        `;
+        const blob = new Blob([swCode], { type: 'application/javascript' });
+        navigator.serviceWorker.register(URL.createObjectURL(blob));
+    }
+
+    /* --- 2. QUESTION BANK --- */
+    const db = {
+        computer: [
+            {q: "Which OSI layer is responsible for IP Addressing and Routing?", o: ["Data Link", "Network", "Transport", "Session"], a: 1},
+            {q: "Shortcut for Absolute Reference in Excel?", o: ["F2", "F4", "F7", "F11"], a: 1},
+            {q: "SaaS stands for?", o: ["System as a Service", "Software as a Service", "Storage as a Service", "Server as a Service"], a: 1},
+            {q: "Full form of RAM?", o: ["Random Access Memory", "Read Access Memory", "Run Access Memory", "Random All Memory"], a: 0},
+            {q: "MS Word shortcut for Bold?", o: ["Ctrl+B", "Ctrl+I", "Ctrl+U", "Ctrl+S"], a: 0},
+            {q: "What does HTTP stand for?", o: ["Hyper Text Transfer Protocol", "High Tech Transfer Protocol", "Hyper Transfer Text Protocol", "Hyper Text Transfer Process"], a: 0},
+            {q: "Which is not an input device?", o: ["Mouse", "Keyboard", "Monitor", "Scanner"], a: 2},
+            {q: "1 TB = ? GB", o: ["1000", "1024", "2000", "512"], a: 1},
+            {q: "Ctrl + Z does what?", o: ["Undo", "Redo", "Copy", "Paste"], a: 0},
+            {q: "What is Firewall?", o: ["Security system", "Browser", "Hardware", "OS"], a: 0}
+        ],
+        jk_gk: [
+            {q: "Section 14 of J&K Reorganisation Act 2019 deals with?", o: ["Legislative Assembly", "High Court", "Official Languages", "LG Appointment"], a: 0},
+            {q: "Z-Morh tunnel connects Gagangir to?", o: ["Gulmarg", "Sonamarg", "Pahalgam", "Yusmarg"], a: 1},
+            {q: "Martand Sun Temple built by?", o: ["Avantivarman", "Lalitaditya Muktapida", "Zain-ul-Abidin", "Gulab Singh"], a: 1},
+            {q: "Longest river in J&K?", o: ["Jhelum", "Chenab", "Indus", "Ravi"], a: 0},
+            {q: "Article 370 abrogated on?", o: ["May 2020", "Aug 2019", "Jan 2020", "Oct 2019"], a: 1}
+        ],
+        english: [
+            {q: "Subjunctive: 'If I ___ you, I would take the job.'", o: ["am", "was", "were", "be"], a: 2},
+            {q: "Synonym of 'Prudent'?", o: ["Careless", "Wise", "Angry", "Fast"], a: 1},
+            {q: "Fill: She is ___ honest officer.", o: ["a", "an", "the", "no article"], a: 1},
+            {q: "One word for 'Fear of water'?", o: ["Claustrophobia", "Hydrophobia", "Acrophobia", "Agoraphobia"], a: 1}
+        ],
+        aptitude: [
+            {q: "5 workers build wall in 10 days, 10 workers in?", o: ["20", "5", "2.5", "15"], a: 1},
+            {q: "Series: 2, 5, 10, 17, ?", o: ["26", "24", "28", "30"], a: 0},
+            {q: "Train 100m long crosses pole in 5s, speed in kmph?", o: ["20", "72", "50", "10"], a: 1},
+            {q: "Average of 10, 20, 30?", o: ["15", "20", "25", "18"], a: 1}
+        ]
+    };
+
+    /* --- 3. LOGIC ENGINE --- */
+    let stats = {computer: {att:0, corr:0}, jk_gk:{att:0,corr:0}, english:{att:0,corr:0}, aptitude:{att:0,corr:0}};
+    let activeSet = [], qIndex = 0, currentScore = 0, cat = '';
+
+    function startQuiz(category) {
+        document.getElementById('home-screen').style.display = 'none';
+        document.getElementById('quiz-box').style.display = 'block';
+        cat = category;
+        activeSet = category === 'mock' ? 
+            [...db.computer, ...db.jk_gk, ...db.english, ...db.aptitude].sort(() => Math.random() - 0.5) 
+            : db[category];
+        qIndex = 0; currentScore = 0;
+        document.getElementById('section-title').innerText = category.toUpperCase().replace('_', ' ');
+        loadQuestion();
+    }
+
+    function loadQuestion() {
+        const q = activeSet[qIndex];
+        document.getElementById('question-text').innerText = q.q;
+        document.getElementById('q-count').innerText = `Question ${qIndex + 1} of ${activeSet.length}`;
+        const list = document.getElementById('options-list');
+        list.innerHTML = '';
+        q.o.forEach((opt, i) => {
+            const btn = document.createElement('button');
+            btn.className = 'option';
+            btn.innerText = opt;
+            btn.onclick = () => checkAnswer(i);
+            list.appendChild(btn);
+        });
+        document.getElementById('next-btn').style.display = 'none';
+        document.getElementById('feedback').innerText = '';
+    }
+
+    function checkAnswer(idx) {
+        if (document.getElementById('next-btn').style.display === 'block') return; // Prevent double click
+        
+        const correct = activeSet[qIndex].a;
+        const options = document.querySelectorAll('.option');
+        
+        // Track stats only for specific categories, not general mock
+        if(cat !== 'mock') {
+            stats[cat].att++;
+            if (idx === correct) stats[cat].corr++;
+        }
+
+        if (idx === correct) {
+            currentScore++;
+            options[idx].classList.add('correct');
+            document.getElementById('feedback').innerText = "✅ Correct!";
+        } else {
+            options[idx].classList.add('wrong');
+            options[correct].classList.add('correct');
+            document.getElementById('feedback').innerText = "❌ Wrong.";
+        }
+        updateStatsDisplay();
+        document.getElementById('next-btn').style.display = 'block';
+    }
+
+    function nextQuestion() {
+        qIndex++;
+        if (qIndex < activeSet.length) {
+            loadQuestion();
+        } else {
+            alert(`Quiz Complete! Score: ${currentScore}/${activeSet.length}`);
+            document.getElementById('home-screen').style.display = 'block';
+            document.getElementById('quiz-box').style.display = 'none';
+        }
+    }
+
+    function updateStatsDisplay() {
+        const categories = ['computer', 'jk_gk', 'english', 'aptitude'];
+        const ids = ['comp', 'jk', 'eng', 'apt'];
+        categories.forEach((c, i) => {
+            document.getElementById(`${ids[i]}-att`).innerText = stats[c].att;
+            document.getElementById(`${ids[i]}-acc`).innerText = stats[c].att ? Math.round((stats[c].corr / stats[c].att) * 100) + '%' : '0%';
+        });
+    }
+
+    function exportToPDF() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        doc.setFontSize(18);
+        doc.text("JKSSB Performance Report", 20, 20);
+        doc.setFontSize(12);
+        doc.text(`Candidate: Syed Mohd Umar Jeelani`, 20, 30);
+        doc.text(`Computer Accuracy: ${document.getElementById('comp-acc').innerText}`, 20, 45);
+        doc.text(`J&K GK Accuracy: ${document.getElementById('jk-acc').innerText}`, 20, 55);
+        doc.text(`English Accuracy: ${document.getElementById('eng-acc').innerText}`, 20, 65);
+        doc.text(`Aptitude Accuracy: ${document.getElementById('apt-acc').innerText}`, 20, 75);
+        doc.save("JKSSB_Report_Umar.pdf");
+    }
+</script>
+
+</body>
+</html>
